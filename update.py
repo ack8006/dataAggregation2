@@ -5,12 +5,13 @@ import dbconnection
 import keys
 import datetime
 
-
+#****should update currences table for to_date
+#****occassionally check for differences between db and api
 class CheckUpdate():
     def __init__(self, priority=2):
         self.priority = priority
 
-    def updateNewFX(self):
+    def getNewFXForUpdate(self):
         db = dbconnection.start()
         with closing(db.cursor()) as cur:
             newFX = self.checkForNewPriorityCurrencies(cur)
@@ -29,8 +30,20 @@ class CheckUpdate():
         fxpairs = cur.fetchall()
         return fxpairs
 
-    def updateExistingFX(self):
-        pass
+    def getExistingFXForUpdate(self):
+        db = dbconnection.start()
+        with closing(db.cursor()) as cur:
+            upFX = self.checkForCurrencyUpdates(cur)
+
+        db.close()
+        return upFX
+
+    def checkForCurrencyUpdates(self, cur):
+        cur.execute('''SELECT code, MAX(date) date
+                    FROM dailyFXPrices
+                    GROUP BY code''')
+        fxDates = cur.fetchall()
+        return fxDates
 
 
 class UpdateCurrency():
@@ -76,22 +89,32 @@ class UpdateCurrency():
         pageJson = page.json()
         return pageJson
 
-
-
-
-
+#***can add more checks based on day of week and whatnot
+def shouldCheckForUpdate(date):
+    shouldCheck = True
+    nextDate = date+datetime.timedelta(days=1)
+    todayDate = datetime.datetime.now().date()
+    if  nextDate >= todayDate :
+        shouldCheck = False
+    return shouldCheck
 
 
 if __name__ == "__main__":
     cu = CheckUpdate()
-    newFX=cu.updateNewFX()
+    newFX=cu.getNewFXForUpdate()
+    existingFX=cu.getExistingFXForUpdate()
 
-    #existingFX=cu.updateExistingFX()
+    #*****at some point multiprocessing
+    for x in newFX:
+        uc=UpdateCurrency(x)
+        uc.startUpdate()
 
-    #for x in newFX:
-    x = newFX[0]
-    uc=UpdateCurrency(x)
-    uc.startUpdate()
-
+    for ex in existingFX:
+        fx = ex[0]
+        startDate=ex[1]
+        if shouldCheckForUpdate(startDate):
+            uc=UpdateCurrency(fx, str(startDate))
+            uc.startUpdate()
+            print 'updating'
 
 
