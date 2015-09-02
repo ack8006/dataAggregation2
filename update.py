@@ -4,10 +4,11 @@ from contextlib import closing
 import dbconnection
 import keys
 import datetime
+import downloadQuandlAPIData as dqad
 
 #****should update currences table for to_date
 #****occassionally check for differences between db and api
-class CheckUpdate():
+class CheckUpdateFX():
     def __init__(self, priority=2):
         self.priority = priority
 
@@ -45,27 +46,14 @@ class CheckUpdate():
         fxDates = cur.fetchall()
         return fxDates
 
-
-class UpdateCurrency():
-    def __init__(self, code, sdate=None, edate=None):
+#***Should be a class for all assets with specific upload FX data
+class UploadCurrencyData():
+    def __init__(self, code, pageJson):
+        self.pageJson = pageJson
         self.code = code
-        self.sdate = sdate
-        self.edate = edate
-
-    def generateURL(self):
-        urlBase="https://www.quandl.com/api/v1/datasets/CURRFX/{}.json?".format(self.code)
-        auth= "auth_token="+keys.QUANDL_AUTH_KEY
-        urlBase= urlBase+auth
-        if self.sdate:
-            urlBase=urlBase+"&trim_start="+self.sdate
-        if self.edate:
-            urlBase=urlBase+"&trim_end="+self.edate
-        return urlBase
 
     def startUpdate(self):
-        url = self.generateURL()
-        pageJson = self.getCurrencyData(url)
-        data = pageJson['data']
+        data = self.pageJson['data']
         self.uploadData(data)
 
     def uploadData(self, data):
@@ -75,6 +63,7 @@ class UpdateCurrency():
                 date = datetime.datetime.strptime(dp[0], "%Y-%m-%d").date()
                 high = None
                 low = None
+# insers None instead of 0.0 if missing
                 if dp[2] != 0.0: high = dp[2]
                 if dp[3] !=0.0: low = dp[3]
                 cur.execute('''INSERT INTO dailyFXPrices
@@ -84,10 +73,6 @@ class UpdateCurrency():
             db.commit()
         db.close()
 
-    def getCurrencyData(self, url):
-        page = requests.get(url)
-        pageJson = page.json()
-        return pageJson
 
 #***can add more checks based on day of week and whatnot
 def shouldCheckForUpdate(date):
@@ -100,21 +85,27 @@ def shouldCheckForUpdate(date):
 
 
 if __name__ == "__main__":
-    cu = CheckUpdate()
+    cu = CheckUpdateFX()
     newFX=cu.getNewFXForUpdate()
     existingFX=cu.getExistingFXForUpdate()
 
     #*****at some point multiprocessing
     for x in newFX:
-        uc=UpdateCurrency(x)
-        uc.startUpdate()
+        gqad = dqad.GetQuandlAPIData(x, 'CURRFX')
+        pageJson = gqad.getQuandlData()
+        ucd = UploadCurrencyData(x, pageJson)
+        ucd.startUpdate()
 
     for ex in existingFX:
-        fx = ex[0]
+        code = ex[0]
         startDate=ex[1]
         if shouldCheckForUpdate(startDate):
-            uc=UpdateCurrency(fx, str(startDate))
-            uc.startUpdate()
-            print 'updating'
+            gqad = dqad.GetQuandlAPIData(code, 'CURRFX', str(startDate))
+            pageJson = gqad.getQuandlData()
+            ucd = UploadCurrencyData(code, pageJson)
+            ucd.startUpdate()
+
+
+
 
 
