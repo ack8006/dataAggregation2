@@ -6,6 +6,7 @@ import keys
 import assetDBs as adb
 import datetime
 import downloadData as dd
+import updateIndex
 
 #****should update currences table for to_date
 #****occassionally check for differences between db and api
@@ -40,6 +41,7 @@ class CheckUpdate():
             upFX = self.checkForUpdates(cur)
 
         db.close()
+        upFX = [[x[0],x[1]] for x in upFX]
         return upFX
 
     def checkForUpdates(self, cur):
@@ -50,31 +52,60 @@ class CheckUpdate():
         return fxDates
 
 #***Should be a class for all assets with specific upload FX data
-class UploadCurrencyData():
-    def __init__(self, code, pageJson):
+class UploadAssetData():
+    def __init__(self, code, pageJson, assetType, priceDB):
         self.pageJson = pageJson
         self.code = code
+        constructorDict = {'CURNCY': self.FXCurConstructor,
+                           'INDEX': self.IndCurConstructor,
+                           'COMDTY': self.ComdCurConstructor
+                           }
+        self.curConstructor = constructorDict[assetType]
+        self.priceDB = priceDB
 
     def startUpdate(self):
-        data = self.pageJson['data']
-        self.uploadData(data)
+        try:
+            data = self.pageJson['data']
+            self.uploadData(data)
+        except KeyError, e:
+            print e
+            print "CANNOT GET DATA FOR "+ self.code
 
     def uploadData(self, data):
         db = dbconnection.start()
         with closing(db.cursor()) as cur:
-            for dp in data:
-                date = datetime.datetime.strptime(dp[0], "%Y-%m-%d").date()
-                high = None
-                low = None
-# insers None instead of 0.0 if missing
-                if dp[2] != 0.0: high = dp[2]
-                if dp[3] !=0.0: low = dp[3]
-                cur.execute('''INSERT INTO dailyFXPrices
-                            (code, rate, highprice, lowprice, date) VALUES
-                            (%s, %s, %s, %s, %s)''',
-                            (self.code, dp[1],high,low,date))
+            cur = self.curConstructor(cur, data)
             db.commit()
         db.close()
+
+    def FXCurConstructor(self, cur, data):
+        for dp in data:
+            date = datetime.datetime.strptime(dp[0], "%Y-%m-%d").date()
+            high = None
+            low = None
+# insers None instead of 0.0 if missing
+            if dp[2] != 0.0: high = dp[2]
+            if dp[3] !=0.0: low = dp[3]
+            cur.execute('''INSERT INTO '''+self.priceDB+
+                        '''(code, rate, high, low, date) VALUES
+                        (%s, %s, %s, %s, %s)''',
+                        (self.code, dp[1],high,low,date))
+        return cur
+
+    def IndCurConstructor(self, cur, data):
+        for dp in data:
+            date = datetime.datetime.strptime(dp[0], "%Y-%m-%d").date()
+            #date, open, high, low, close, volume, adj_close
+            cur.execute('''INSERT INTO '''+self.priceDB+
+                        ''' (code, open, high, low, close, volume, date) VALUES
+                        (%s,%s,%s,%s,%s,%s,%s)''',
+                        (self.code, dp[1],dp[2],dp[3],dp[4],dp[5], date,))
+        return cur
+
+    def ComdCurConstructor(self, cur, data):
+        pass
+
+
 
 
 #***can add more checks based on day of week and whatnot
@@ -86,8 +117,10 @@ def shouldCheckForUpdate(date):
         shouldCheck = False
     return shouldCheck
 
-def updateFXData(dbs):
-    def getAndPushData(assetDatePairs, apiAsset):
+def updateData(assetType):
+    apiAssetDict = adb.assetsAPIs
+
+    def getAndPushData(assetDatePairs, apiAsset, assetType, priceDB):
         for pair in assetDatePairs:
             code=pair[0]
             startDate=pair[1]
@@ -95,15 +128,19 @@ def updateFXData(dbs):
                 if not shouldCheckForUpdate(startDate):
                     continue
                 startDate = str(startDate+datetime.timedelta(days=1))
+            #****SO JENKY
+            if assetType == 'INDEX':
+                code = 'INDEX_'+code
             gqad = dd.GetQuandlAPIData(code, apiAsset, startDate)
             pageJson = gqad.getQuandlData()
-            ucd = UploadCurrencyData(code, pageJson)
+            if assetType == 'INDEX': code = code.replace('INDEX_','')
+            ucd = UploadAssetData(code, pageJson, assetType, priceDB)
             ucd.startUpdate()
 
-
-    newFX, existingFX = dataToUpdate(dbs)
-    getAndPushData(newFX, 'CURRFX')
-    getAndPushData(existingFX, 'CURRFX')
+    dbs = adb.assetDBs[assetType]
+    newAssets, existingAssets = dataToUpdate(dbs)
+    getAndPushData(newAssets, apiAssetDict[assetType], assetType, dbs[1])
+    getAndPushData(existingAssets, apiAssetDict[assetType], assetType, dbs[1])
 
 
 def dataToUpdate(dbs):
@@ -113,10 +150,13 @@ def dataToUpdate(dbs):
     return newAssets, existingAssets
 
 
-
 if __name__ == "__main__":
-    assetDBs = adb.assetDBs
-    updateFXData(assetDBs['CURNCY'])
+    updateData('CURNCY')
+
+    #index updating
+    updateData('INDEX')
+    updateIndex.updateIndices()
+
 
 
 
