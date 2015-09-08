@@ -1,10 +1,10 @@
 import pandas as pd
 import dbconnection
 import datetime
-from downloadData import GetQuandlAPIData
 import updateIndex
 import assetDBs as adb
-
+import quandlpy as qp
+import keys
 
 
 class GetPriceData():
@@ -42,21 +42,17 @@ class GetPriceData():
     def getPricesFromExtern(self):
         prefix = adb.quandlPrefix[self.assetClass]
 
-        gqpd = GetQuandlAPIData(prefix+self.code, self.assetAPI, self.sDate, self.eDate)
-        quandlDict = gqpd.getQuandlData()
-        quandlCols = quandlDict['column_names']
-        quandlData = quandlDict['data']
-        return self.convertToDataFrame(quandlCols, quandlData)
+        dFrame = qp.get(self.assetAPI, prefix+self.code, start_date=self.sDate,
+                        end_date = self.eDate, api_key=keys.QUANDL_AUTH_KEY)
+        return self.cleanDataFrame(dFrame)
 
 
-    def convertToDataFrame(self, cols, data):
+    def cleanDataFrame(self, dFrame):
         replacementDict={'High (est)':'high','Low (est)':'low'
-                        }
-        cols = [x.lower() if x not in replacementDict
-                else replacementDict[x] for x in cols]
-        df = pd.DataFrame(data, columns=cols)
-        df['code']=self.code
-        return df
+        dFrame.columns = [x.lower() if x not in replacementDict
+                else replacementDict[x] for x in dFrame.columns]
+        dFrame['code']=self.code
+        return dFrame
 
 
 if __name__ == "__main__":

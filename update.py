@@ -130,7 +130,7 @@ def updateData(assetType):
             gqad = dd.GetQuandlAPIData(adb.quandlPrefix[assetType]+code,
                                        apiAsset, startDate)
             pageJson = gqad.getQuandlData()
-            if assetType == 'INDEX': code = code.replace('INDEX_','')
+#            if assetType == 'INDEX': code = code.replace('INDEX_','')
             ucd = UploadAssetData(code, pageJson, assetType, priceDB)
             ucd.startUpdate()
 
