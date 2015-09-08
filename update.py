@@ -106,8 +106,6 @@ class UploadAssetData():
         pass
 
 
-
-
 #***can add more checks based on day of week and whatnot
 def shouldCheckForUpdate(date):
     shouldCheck = True
@@ -118,7 +116,7 @@ def shouldCheckForUpdate(date):
     return shouldCheck
 
 def updateData(assetType):
-    apiAssetDict = adb.assetsAPIs
+    apiAssetDict = adb.assetAPIs
 
     def getAndPushData(assetDatePairs, apiAsset, assetType, priceDB):
         for pair in assetDatePairs:
@@ -128,10 +126,9 @@ def updateData(assetType):
                 if not shouldCheckForUpdate(startDate):
                     continue
                 startDate = str(startDate+datetime.timedelta(days=1))
-            #****SO JENKY
-            if assetType == 'INDEX':
-                code = 'INDEX_'+code
-            gqad = dd.GetQuandlAPIData(code, apiAsset, startDate)
+
+            gqad = dd.GetQuandlAPIData(adb.quandlPrefix[assetType]+code,
+                                       apiAsset, startDate)
             pageJson = gqad.getQuandlData()
             if assetType == 'INDEX': code = code.replace('INDEX_','')
             ucd = UploadAssetData(code, pageJson, assetType, priceDB)

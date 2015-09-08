@@ -10,7 +10,8 @@ class GetQuandlAPIData():
         self.edate = edate
 
     def generateURL(self):
-        urlBase="https://www.quandl.com/api/v1/datasets/{}/{}.json?".format(self.apiAsset, self.code)
+        urlBase="https://www.quandl.com/api/v1/datasets/{}/{}.json?".format(
+            self.apiAsset, self.code)
         auth= "auth_token="+keys.QUANDL_AUTH_KEY
         url = urlBase+auth
         if self.sdate:

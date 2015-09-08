@@ -60,8 +60,8 @@ class GetPriceData():
 
 
 if __name__ == "__main__":
-    #gpd = GetPriceData(['USDTHB', 'CURNCY', '2015-08-01', '2015-08-30'])
-    #print gpd.getPriceData()
+    gpd = GetPriceData(['USDTHB', 'CURNCY', '2015-08-01', '2015-08-30'])
+    print gpd.getPriceData()
     gpd = GetPriceData(['USDJPY', 'CURNCY', '2015-08-01', '2015-08-30'])
     print gpd.getPriceData()
 
@@ -70,12 +70,6 @@ if __name__ == "__main__":
 
     gpd = GetPriceData(['AEX','INDEX','2015-08-01','2015-08-31'])
     print gpd.getPriceData()
-
-
-
-
-
-
 
 
 

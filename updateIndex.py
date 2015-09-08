@@ -11,10 +11,18 @@ def loopAssetDates(indexDBs, assetsDates):
         code = ad[0]
         date = datetime.date(1900,1,1)
         if ad[1]: date = ad[1]+datetime.timedelta(days=1)
-        print ad
-        priceData = getPriceData(code, date)
+        priceData = None
+        if shouldUpdate(date):
+            print 'Updating: ' + str(ad)
+            priceData = getPriceData(code, date)
         if isinstance(priceData, pd.DataFrame):
             storePriceData(indexDBs, priceData)
+
+def shouldUpdate(date):
+    if date < datetime.datetime.now().date():
+        return True
+    else:
+        return False
 
 def getPriceData(code, date):
     priceData = None
@@ -45,7 +53,6 @@ def updateIndices():
     cu = CheckUpdate(indexDBs[0],indexDBs[1])
     newAssets = cu.getNewAssetForUpdate()
     existingAssets = cu.getExistingAssetsForUpdate()
-    print existingAssets
 
     assetsDates = newAssets+existingAssets
     loopAssetDates(indexDBs, assetsDates)
